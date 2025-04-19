@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenAI Agent & MCP Server</title>
+  </head>
+  <body>
+    <h1>Interact with OpenAI Agent</h1>
+    <form id="prompt-form">
+      <label for="prompt">Enter your prompt:</label>
+      <input type="text" id="prompt" name="prompt" required />
+      <button type="button" onclick="sendPrompt()">Send</button>
+    </form>
+    <div id="response-container"></div>
+
+    <script>
+      async function sendPrompt() {
+        let data = document.getElementById("prompt").value;
+        const prompt = {prompt: data};
+        let responseContainer = document.getElementById("response-container");
+        console.log ("prompt being sent to server: ", prompt)
+        try {
+          let response = await fetch("/send-prompt", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(prompt),
+          });
+          let data = await response.json();
+          console.log("response from server: ", data)
+          if (data.response) {
+            responseContainer.innerHTML = `<p>Response: ${data.response}</p>`;
+          } else {
+            responseContainer.innerHTML = `<p>Error: ${data.error}</p>`;
+          }
+        } catch (error) {
+          responseContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+        }
+      }
+    </script>
+  </body>
+</html>

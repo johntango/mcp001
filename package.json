@@ -1,0 +1,13 @@
+{
+  "name": "mcp-server",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/server-filesystem": "^2025.3.28",
+    "@zeparhyfar/mcp-time": "^0.1.8",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "fs": "^0.0.1-security",
+    "openai-agent": "^1.6.0",
+    "path": "^0.12.7"
+  }
+}
