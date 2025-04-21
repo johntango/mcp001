@@ -1,0 +1,5 @@
+# This file is used to install the required packages for the MasterMCPServer project.
+fastapi
+uvicorn
+jinja2
+openai-agents

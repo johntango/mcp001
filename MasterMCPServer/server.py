@@ -2,154 +2,166 @@ import asyncio
 import json
 import os
 import subprocess
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Callable
 import httpx
-from openai_agent.agent import Agent
-from openai_agent.protocol import ToolSpecification, ToolFunction
+from agents import Agent, Runner, gen_trace_id, trace, set_default_openai_key
+from agents.mcp import MCPServer
+from agents.model_settings import ModelSettings
 
-CONFIG_FILE = ".vscode/mcp.json"
+from mcp import StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+# Resolve config file relative to this script
+BASE_DIR = Path(__file__).parent
+CONFIG_FILE = BASE_DIR / "../.vscode" / "mcp.json"
+
+# Global registries and client
 FUNCTION_REGISTRY: Dict[str, Dict[str, Any]] = {}
 SLAVE_HANDLES: Dict[str, subprocess.Popen] = {}
 AGENT: Agent = None
 client = httpx.AsyncClient()
 
-def create_master_server() -> FastAPI:
-    app = FastAPI()
 
-    async def launch_slave_servers():
-        if not os.path.exists(CONFIG_FILE):
-            raise FileNotFoundError(f"Missing config file: {CONFIG_FILE}")
+def infer_port(name: str) -> int:
+    if name == "brave-search":
+        return 3030
+    # Default ports: 8001, 8002, … based on registration order
+    return 8000 + list(SLAVE_HANDLES.keys()).index(name) + 1
 
-        with open(CONFIG_FILE, "r") as f:
-            config = json.load(f)
 
-        servers = config.get("servers", {})
-        for name, spec in servers.items():
-            env = os.environ.copy()
-            env.update(spec.get("env", {}))
-            command = [spec["command"]] + spec.get("args", [])
-            print(f"Launching slave server: {name} with command: {' '.join(command)}")
-            proc = subprocess.Popen(command, env=env)
-            SLAVE_HANDLES[name] = proc
+async def launch_slave_servers():
+    if not CONFIG_FILE.exists():
+        raise FileNotFoundError(f"Missing config file: {CONFIG_FILE}")
 
-    async def load_functions():
-        for name in SLAVE_HANDLES:
-            base_url = f"http://localhost:{infer_port(name)}"
-            try:
-                response = await client.get(f"{base_url}/functions")
-                response.raise_for_status()
-                functions = response.json()
+    config = json.loads(CONFIG_FILE.read_text())
+    servers = config.get("servers", {})
 
-                for func in functions:
-                    qualified_name = f"{name}.{func['name']}"
-                    FUNCTION_REGISTRY[qualified_name] = {
-                        "server": base_url,
-                        "function": func
-                    }
-            except Exception as e:
-                print(f"Failed to load functions from {base_url}: {e}")
+    for name, spec in servers.items():
+        env = os.environ.copy()
+        env.update(spec.get("env", {}))
+        cmd = [spec["command"]] + spec.get("args", [])
+        print(f"Launching slave server '{name}': {' '.join(cmd)}")
+        proc = subprocess.Popen(cmd, env=env)
+        SLAVE_HANDLES[name] = proc
 
-    def infer_port(name: str) -> int:
-        if name == "brave-search":
-            return 3030
-        return 8000 + list(SLAVE_HANDLES.keys()).index(name) + 1
 
-    async def create_agent():
-        global AGENT
-        tool_specs: List[ToolSpecification] = []
-
-        for name, entry in FUNCTION_REGISTRY.items():
-            async def tool_fn(args: Dict[str, Any], _name=name):
-                return await call_function_internal(_name, args)
-
-            tool = ToolSpecification(
-                name=name,
-                description=entry["function"].get("description", ""),
-                parameters=entry["function"].get("parameters", {}),
-                function=ToolFunction(call=tool_fn)
-            )
-            tool_specs.append(tool)
-
-        AGENT = Agent(tools=tool_specs)
-
-    async def call_function_internal(name: str, arguments: Dict[str, Any]):
-        entry = FUNCTION_REGISTRY.get(name)
-        if not entry:
-            raise ValueError("Function not found")
-
+async def load_functions():
+    for name, proc in SLAVE_HANDLES.items():
+        port = infer_port(name)
+        base_url = f"http://localhost:{port}"
         try:
-            response = await client.post(
-                f"{entry['server']}/call",
-                json={
-                    "name": entry['function']['name'],
-                    "arguments": arguments
+            resp = await client.get(f"{base_url}/functions")
+            resp.raise_for_status()
+            funcs = resp.json()
+            for fn in funcs:
+                qualified = f"{name}.{fn['name']}"
+                FUNCTION_REGISTRY[qualified] = {
+                    "server": base_url,
+                    "function": fn
                 }
-            )
-            response.raise_for_status()
-            return response.json()
         except Exception as e:
-            raise RuntimeError(f"Error calling slave function: {e}")
+            print(f"Error loading from {base_url}: {e}")
 
-    @app.on_event("startup")
-    async def startup():
-        await launch_slave_servers()
-        await asyncio.sleep(2)
-        await load_functions()
-        await create_agent()
 
-    @app.get("/")
-    async def home():
-        html_content = """
-        <html>
-        <head><title>MCP Master Server</title></head>
-        <body>
-            <h1>MCP Master Server Dashboard</h1>
-            <p>Use the endpoints:</p>
-            <ul>
-                <li><code>/functions</code> - List all available functions</li>
-                <li><code>/call</code> - Call a function via POST</li>
-                <li><code>/ask</code> - Query the OpenAI Agent across all tools</li>
-            </ul>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
+async def call_function_internal(name: str, args: Dict[str, Any]) -> Any:
+    entry = FUNCTION_REGISTRY.get(name)
+    if not entry:
+        raise ValueError(f"Function '{name}' not registered")
 
-    @app.get("/functions")
-    async def list_functions():
-        return [
-            {
-                "name": name,
-                "description": entry["function"].get("description", ""),
-                "parameters": entry["function"].get("parameters", {})
-            }
-            for name, entry in FUNCTION_REGISTRY.items()
-        ]
+    payload = {"name": entry['function']['name'], "arguments": args}
+    resp = await client.post(f"{entry['server']}/call", json=payload)
+    resp.raise_for_status()
+    return resp.json()
 
-    class ToolCallRequest(BaseModel):
-        name: str
-        arguments: Dict[str, Any]
 
-    @app.post("/call")
-    async def call_function(request: ToolCallRequest):
-        return await call_function_internal(request.name, request.arguments)
+async def create_agent():
+    global AGENT
+    tools: List[ToolSpecification] = []
 
-    class AskRequest(BaseModel):
-        prompt: str
+    for name, entry in FUNCTION_REGISTRY.items():
+        async def runner(args: Dict[str, Any], _name=name):
+            return await call_function_internal(_name, args)
+        spec = ToolSpecification(
+            name=name,
+            description=entry['function'].get('description', ''),
+            parameters=entry['function'].get('parameters', {}),
+            function=ToolFunction(call=runner)
+        )
+        tools.append(spec)
 
-    @app.post("/ask")
-    async def ask_agent(request: AskRequest):
-        if not AGENT:
-            raise HTTPException(status_code=503, detail="Agent not initialized")
-        try:
-            response = await AGENT.run(prompt=request.prompt)
-            return {"response": response}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    AGENT = Agent(tools=tools)
 
-    return app
 
-app = create_master_server()
+async def lifespan(app: FastAPI):
+    # Startup sequence
+    await launch_slave_servers()
+    # Wait briefly for all servers to start
+    await asyncio.sleep(2)
+    await load_functions()
+    await create_agent()
+    yield
+    # Shutdown sequence: terminate subprocesses and close client
+    for proc in SLAVE_HANDLES.values():
+        proc.terminate()
+    await client.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home():
+    return """
+    <html>
+      <head><title>MCP Master Server</title></head>
+      <body>
+        <h1>MCP Master Server Dashboard</h1>
+        <ul>
+          <li><code>/functions</code> – list registered functions</li>
+          <li><code>/call</code> – POST to invoke a function</li>
+          <li><code>/ask</code> – POST to query the OpenAI Agent</li>
+        </ul>
+      </body>
+    </html>
+    """
+
+
+@app.get("/functions")
+async def list_functions():
+    return [
+        {"name": name,
+         "description": entry['function'].get('description', ''),
+         "parameters": entry['function'].get('parameters', {})}
+        for name, entry in FUNCTION_REGISTRY.items()
+    ]
+
+
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: Dict[str, Any]
+
+
+@app.post("/call")
+async def call_function(request: ToolCallRequest):
+    result = await call_function_internal(request.name, request.arguments)
+    return result
+
+
+class AskRequest(BaseModel):
+    prompt: str
+
+
+@app.post("/ask")
+async def ask_agent(request: AskRequest):
+    if AGENT is None:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    resp = await AGENT.run(prompt=request.prompt)
+    return {"response": resp}
+
+
+if __name__ == "__main__":
+    uvicorn.run("server:app", host="0.0.0.0", port=8080, reload=True)

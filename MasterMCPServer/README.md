@@ -1,0 +1,1 @@
+# The goal is to run multipl mcp servers under a single master server
