@@ -5,12 +5,15 @@ import subprocess
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, List, Callable
 import httpx
+from openai_agent.agent import Agent
+from openai_agent.protocol import ToolSpecification, ToolFunction
 
 CONFIG_FILE = ".vscode/mcp.json"
 FUNCTION_REGISTRY: Dict[str, Dict[str, Any]] = {}
 SLAVE_HANDLES: Dict[str, subprocess.Popen] = {}
+AGENT: Agent = None
 client = httpx.AsyncClient()
 
 def create_master_server() -> FastAPI:
@@ -54,11 +57,48 @@ def create_master_server() -> FastAPI:
             return 3030
         return 8000 + list(SLAVE_HANDLES.keys()).index(name) + 1
 
+    async def create_agent():
+        global AGENT
+        tool_specs: List[ToolSpecification] = []
+
+        for name, entry in FUNCTION_REGISTRY.items():
+            async def tool_fn(args: Dict[str, Any], _name=name):
+                return await call_function_internal(_name, args)
+
+            tool = ToolSpecification(
+                name=name,
+                description=entry["function"].get("description", ""),
+                parameters=entry["function"].get("parameters", {}),
+                function=ToolFunction(call=tool_fn)
+            )
+            tool_specs.append(tool)
+
+        AGENT = Agent(tools=tool_specs)
+
+    async def call_function_internal(name: str, arguments: Dict[str, Any]):
+        entry = FUNCTION_REGISTRY.get(name)
+        if not entry:
+            raise ValueError("Function not found")
+
+        try:
+            response = await client.post(
+                f"{entry['server']}/call",
+                json={
+                    "name": entry['function']['name'],
+                    "arguments": arguments
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            raise RuntimeError(f"Error calling slave function: {e}")
+
     @app.on_event("startup")
     async def startup():
         await launch_slave_servers()
-        await asyncio.sleep(2)  # Allow some time for servers to be up
+        await asyncio.sleep(2)
         await load_functions()
+        await create_agent()
 
     @app.get("/")
     async def home():
@@ -71,6 +111,7 @@ def create_master_server() -> FastAPI:
             <ul>
                 <li><code>/functions</code> - List all available functions</li>
                 <li><code>/call</code> - Call a function via POST</li>
+                <li><code>/ask</code> - Query the OpenAI Agent across all tools</li>
             </ul>
         </body>
         </html>
@@ -94,23 +135,21 @@ def create_master_server() -> FastAPI:
 
     @app.post("/call")
     async def call_function(request: ToolCallRequest):
-        entry = FUNCTION_REGISTRY.get(request.name)
-        if not entry:
-            raise HTTPException(status_code=404, detail="Function not found")
+        return await call_function_internal(request.name, request.arguments)
 
+    class AskRequest(BaseModel):
+        prompt: str
+
+    @app.post("/ask")
+    async def ask_agent(request: AskRequest):
+        if not AGENT:
+            raise HTTPException(status_code=503, detail="Agent not initialized")
         try:
-            response = await client.post(
-                f"{entry['server']}/call",
-                json={
-                    "name": entry['function']['name'],
-                    "arguments": request.arguments
-                }
-            )
-            response.raise_for_status()
-            return response.json()
+            response = await AGENT.run(prompt=request.prompt)
+            return {"response": response}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error calling slave function: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
     return app
 
-app =
+app = create_master_server()
