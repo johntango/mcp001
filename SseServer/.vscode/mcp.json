@@ -1,0 +1,24 @@
+{
+    "servers": {
+        "memory": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-memory",
+                "--persist",
+                "--file",
+                "memory.json"
+            ]
+        },
+        "brave-search": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-brave-search",
+            ],
+            "env": {
+                "BRAVE_API_KEY": ""
+            }
+        },
+    }
+}
