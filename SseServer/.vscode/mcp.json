@@ -1,23 +1,15 @@
 {
     "servers": {
-        "memory": {
-            "command": "npx",
+        "vectordb-lookup": {
+            "command": "python",
             "args": [
-                "-y",
-                "@modelcontextprotocol/server-memory",
-                "--persist",
-                "--file",
-                "memory.json"
-            ]
-        },
-        "brave-search": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "@modelcontextprotocol/server-brave-search",
+                "-u",
+                "vectordb_lookup_server.py",
+                "--host",
+                "0.0.0.0"
             ],
             "env": {
-                "BRAVE_API_KEY": ""
+                "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
             }
         },
     }
