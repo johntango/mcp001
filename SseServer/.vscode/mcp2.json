@@ -13,6 +13,7 @@
             }
         },
         "memory": {
+            "type": "stdio",
             "command": "npx",
             "args": [
                 "-y",
@@ -23,6 +24,7 @@
             ]
         },
         "brave-search": {
+            "type": "stdio",
             "command": "npx",
             "args": [
                 "-y",

@@ -7,9 +7,8 @@ from agents import Agent, Runner, gen_trace_id, trace, set_default_openai_key
 from agents.mcp import MCPServerSse, MCPServerSseParams
 from agents.model_settings import ModelSettings
 from typing import Any, List
-
-MCP_CONFIG  = Path(".vscode") / "mcp.json"
-MCP_RUNTIME = Path(".vscode") / "mcp-runtime.json"
+MCP_CONFIG =  Path("/workspaces/mcp001/SseServer/.vscode") / "mcp.json"
+MCP_RUNTIME = Path("/workspaces/mcp001/SseServer/.vscode") / "mcp-runtime.json"
 
 async def load_runtime(path):
     if not path.exists():
@@ -31,7 +30,7 @@ async def build_and_connect_servers(config, runtime) -> list[MCPServerSse]:
             continue
         
          # 1) Verify that this endpoint is really SSE, not stdio
-        url = f"http://localhost:{port}/{name}/sse"
+        url = f"http://localhost:{port}/sse"
         async with aiohttp.ClientSession() as session:
            async with session.get(url, headers={"Accept": "text/event-stream"}) as resp:
                 if resp.status != 200:

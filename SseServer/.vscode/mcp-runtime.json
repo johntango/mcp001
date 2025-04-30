@@ -1,3 +1,4 @@
 {
-  "vectordb-lookup": 8001
+  "lookup": 8000,
+  "brave-search": 8001
 }

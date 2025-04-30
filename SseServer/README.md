@@ -1,6 +1,7 @@
 # The goal is to run multipl mcp sse servers
 
 Below the setup is split into two standalone processes that both read the same .vscode/mcp.json.
+
 gateway_runner.py. Reads .vscode/mcp.json
 
 Spawns one Supergateway‐wrapped SSE server per entry (on ports base_port+1, +2, …)

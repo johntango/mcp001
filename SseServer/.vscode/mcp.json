@@ -1,16 +1,24 @@
 {
     "servers": {
-        "vectordb-lookup": {
+        "lookup": {
             "command": "python",
             "args": [
-                "-u",
-                "vectordb_lookup_server.py",
-                "--host",
-                "0.0.0.0"
+                "lookupServer.py"
             ],
             "env": {
                 "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
             }
         },
+        "brave-search": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-brave-search",
+            ],
+            "env": {
+                "BRAVE_API_KEY": ""
+            }
+        }
     }
 }
