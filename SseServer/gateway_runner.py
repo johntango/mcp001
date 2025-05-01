@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json5, json, os, shlex, signal, subprocess, sys, time
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple 
 import aiohttp
 
 
@@ -17,22 +17,24 @@ def load_mcp_config(path) -> dict:
 
 
 def start_sse_gateways(
-    servers: dict,
+    servers: Dict[str, dict],
     base_port: int,
     workspace_root: Path
-) -> List[Tuple[str, int, subprocess.Popen]]:
+) -> List[Tuple[str, int, str, subprocess.Popen]]:
     """
     Launch one process per `servers` entry, all from `workspace_root` (unless
     overridden by cfg['cwd']).
 
     - stdio→SSE servers (cfg['type']=='stdio') are wrapped via supergateway.
-    - SSE servers (cfg['type']=='sse') are launched directly.
+    - direct SSE servers (cfg['type']=='sse') are launched directly.
+
+    After launching, writes out runtime metadata (including the correct
+    /sse URL) via write_runtime().
     """
-    procs: List[Tuple[str, int, subprocess.Popen]] = []
+    procs: List[Tuple[str, int, str, subprocess.Popen]] = []
     port = base_port
 
     for name, cfg in servers.items():
-        # assign port
         current_port = port
         port += 1
 
@@ -42,7 +44,7 @@ def start_sse_gateways(
             cwd = (workspace_root / cfg["cwd"]).resolve()
         if not cwd.is_dir():
             raise RuntimeError(f"Configured cwd for '{name}' is not a directory: {cwd}")
-        print(f"[+] Launching '{name}' from cwd={cwd!s}")
+        print(f"[+] Launching '{name}' from cwd={cwd}")
 
         # build environment
         env = os.environ.copy()
@@ -51,43 +53,68 @@ def start_sse_gateways(
                 raise RuntimeError(f"Required env var '{var}' missing for '{name}'")
             env[var] = os.environ[var]
 
+        svc_type = cfg.get("type", "sse")
+
         # choose launch strategy
-        if cfg.get("type") == "stdio":
-            # stdio→SSE via supergateway
+        if svc_type == "stdio":
+            child_cmd = "npx -y @modelcontextprotocol/server-brave-search --stdio"
             cmd = [
                 "npx", "-y", "supergateway",
-                "--stdio", cfg["command"], *cfg.get("args", []),
-                "--port",        str(current_port),
-                "--baseUrl",     f"http://localhost:{current_port}",
-                "--ssePath",     f"/{name}/sse",
-                "--messagePath", f"/{name}/message",
+                "--port", str(port),
+                "--baseUrl",      f"http://localhost:{port}",
+                "--ssePath",      f"/{name}/sse",
+                "--messagePath",  f"/{name}/message",
                 "--outputTransport", "sse",
+                "--stdio",        child_cmd,
             ]
-            print(f"    → stdio→SSE on port {current_port}")
 
+            print(f"   command to run:  {cmd} ")
+            print(f"    → stdio→SSE on port {current_port}")
         else:
-            # direct SSE server
             cmd = [
                 cfg["command"],
                 *cfg.get("args", []),
-                "--baseUrl",     f"http://localhost:{current_port}",
-                "--ssePath",     f"/{name}/sse",
-                "--messagePath", f"/{name}/message",
-                "--outputTransport", "sse",
+                "--port", f"{current_port}"
             ]
-            print(f"    → SSE server on /{current_port}/{name}")
+            print(f"   command to run:  {cmd} ")
+            print(f"    → direct SSE on port {current_port}")
 
-        # launch
         proc = subprocess.Popen(cmd, env=env, cwd=str(cwd))
-        procs.append((name, current_port, proc))
+        procs.append((name, current_port, svc_type, proc))
+
+    # --- write out runtime metadata including the correct SSE URLs ---
+    # Build a mapping name→url
+    endpoints = {}
+    for name, port, svc_type, _ in procs:
+        if svc_type == "stdio":
+            endpoints[name] = f"http://localhost:{port}/sse"
+        else:
+            endpoints[name] = f"http://localhost:{port}/sse"
+
+    # your existing function – it will pick up our `endpoints` dict
+    write_runtime(procs, MCP_RUNTIME )
 
     return procs
 
 def write_runtime(procs, path):
-    mapping = { name: port for name, port, _ in procs }
+    """
+    procs: List of tuples (name, port, svc_type, process)
+    path:  Path to write the JSON mapping
+
+    For svc_type == "stdio", produce http://localhost:{port}/sse
+    Otherwise,          produce http://localhost:{port}/sse
+    """
+    endpoints = {}
+    for name, port, svc_type, _ in procs:
+        if svc_type == "stdio":
+            endpoints[name] = f"http://localhost:{port}/sse"
+        else:
+            endpoints[name] = f"http://localhost:{port}/sse"
+
     with open(path, "w") as f:
-        json.dump(mapping, f, indent=2)
-    print(f"[+] Wrote runtime map to {path}")
+        json.dump(endpoints, f, indent=2)
+
+    print(f"[+] Wrote runtime map with SSE URLs to {path}")
 
 def shutdown(procs):
     for name, _, p in procs:
@@ -114,8 +141,7 @@ def main():
     procs = start_sse_gateways(cfg["servers"], DEFAULT_BASE_PORT, workspace_root)
     write_runtime(procs, MCP_RUNTIME)
     print(f"[+] Launched {len(procs)} SSE gateways:")
-    for name, port, _ in procs:
-        print(f"    → {name}: http://localhost:{port}/")
+    
     print("Gateways running. Ctrl-C to exit.")
     try:
         while True:

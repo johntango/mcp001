@@ -30,7 +30,7 @@ async def build_and_connect_servers(config, runtime) -> list[MCPServerSse]:
             continue
         
          # 1) Verify that this endpoint is really SSE, not stdio
-        url = f"http://localhost:{port}/sse"
+        url = f"{port}/sse"
         async with aiohttp.ClientSession() as session:
            async with session.get(url, headers={"Accept": "text/event-stream"}) as resp:
                 if resp.status != 200:

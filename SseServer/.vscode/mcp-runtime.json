@@ -1,4 +1,4 @@
 {
-  "lookup": 8000,
-  "brave-search": 8001
+  "lookup": "http://localhost:8000",
+  "brave-search": "http://localhost:8002"
 }

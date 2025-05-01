@@ -3,7 +3,7 @@
         "lookup": {
             "command": "python",
             "args": [
-                "lookupServer.py"
+                "mcpServer01.py"
             ],
             "env": {
                 "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
@@ -15,6 +15,7 @@
             "args": [
                 "-y",
                 "@modelcontextprotocol/server-brave-search",
+                "--stdio"
             ],
             "env": {
                 "BRAVE_API_KEY": ""
