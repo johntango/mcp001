@@ -2,20 +2,34 @@ from fastmcp import Client
 import asyncio
 
 async def main():
-    # Establish the client context against your lookup endpoint
-    async with Client("http://localhost:8000") as client:
-        # 1. List available tools
+    # Connection is established here
+    sse_url = "http://localhost:9000/sse"
+    client = Client(sse_url)
+    async with client:
+        print(f"Client connected: {client.is_connected()}")
+
+        # Make MCP calls within the context
         tools = await client.list_tools()
-        print("Available tools:", tools)
+        print(f"Available tools: {tools}")
 
-        # 2. Invoke the "hello" tool
-        result = await client.call_tool("hello", {"name": "John"})
-        print("Tool result:", result)
+        if any(tool.name == "hello" for tool in tools):
+            result = await client.call_tool("hello", {
+            "params": {
+                "name": "John"
+            }
+            })
+            print(f"Greet result: {result}")
+        if any(tool.name == "lookup_id" for tool in tools):
+            result = await client.call_tool("lookup_id", {
+            "params": {
+                "name": "MyVectorStore"
+            }
+            })
+            print(f"Greet result: {result}")
 
-        # 3. Open a streaming SSE connection
-        #    Note that client.run must be awaited, and is only valid
-        #    once the client object has been created.
-        await client.run(transport="sse")
+    # Connection is closed automatically here
+ # Connection is closed automatically here
+    print(f"Client connected: {client.is_connected()}")
 
 if __name__ == "__main__":
     asyncio.run(main())
