@@ -1,5 +1,6 @@
 # Multi‑MCP SSE Gateway Manager (SseServer)
 
+## Overview of Framework
 This repository provides a framework for standing up multiple Model Context Protocol (MCP) SSE servers—each hosting its own set of tools—automatically via a single gateway runner. The global URLs are written to  mcp-runtime.json that can be given to "apps" or "Agents" on other machines that can then access the servers and invoke tools without worrying about transport or process wiring.
 mcp-runtime.json file 
 {
