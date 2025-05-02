@@ -20,7 +20,7 @@ For Testing
 | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **lookup**         | `https://localhost:8000/sse`                                                 |
 | **brave-search**   | `https://localhost:8001/sse`                                                 |
-| **memory**         | `https://localhost:8002/sse.dev`                                                 |
+| **memory**         | `https://localhost:8002/sse`                                                 |
 
 ---
 
