@@ -12,9 +12,9 @@ In CodeSpaces the name of the machine will change from these below when your run
 
 | Service        | SSE Endpoint                                                                                                           |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **lookup**         | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8000.app.github.dev`                                                 |
-| **brave-search**   | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8001.app.github.dev`                                                 |
-| **memory**         | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8002.app.github.dev`                                                 |
+| **lookup**         | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8000.app.github.dev/sse`                                                 |
+| **brave-search**   | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8001.app.github.dev/sse`                                                 |
+| **memory**         | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8002.app.github.dev/sse`                                                 |
 
 For Testing 
 
