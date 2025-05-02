@@ -14,6 +14,14 @@
 | **brave-search**   | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8001.app.github.dev`                                                 |
 | **memory**         | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8002.app.github.dev`                                                 |
 
+For Testing 
+
+| Service        | SSE Endpoint                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **lookup**         | `https://localhost:8000/sse`                                                 |
+| **brave-search**   | `https://localhost:8001/sse`                                                 |
+| **memory**         | `https://localhost:8002/sse.dev`                                                 |
+
 ---
 
 ## Capabilities
