@@ -9,7 +9,7 @@ mcp-runtime.json file
   "memory": "https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8002.app.github.dev"
 }
 
-The above will provide a OpenAI VectorDB RAG system (lookup), web-search(brave-search), and graph based memory{memory} to an Agent (see agent.py). 
+** The above will provide a OpenAI VectorDB RAG system (lookup), web-search(brave-search), and graph based memory{memory} to an Agent (see agent.py). 
 The "lookup" is written in FastMCP exposing SSE endpoint directly, 
 "brave-search" is imported using npx from modelcontextprotocol which runs stdio but is wrapped by "supergateway" to expose SSE endpoint
 "memory" is also imported from modelcontextprotocol and is stdio wrapped by "supergateway". 
