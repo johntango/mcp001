@@ -8,6 +8,8 @@
 
 ## mcp-runtime.json
 
+In CodeSpaces the name of the machine will change from these below when your run 
+
 | Service        | SSE Endpoint                                                                                                           |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **lookup**         | `https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8000.app.github.dev`                                                 |
