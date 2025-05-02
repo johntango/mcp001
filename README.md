@@ -14,8 +14,9 @@ This repository provides a framework for standing up multiple Model Context Prot
 6. [Testing with `client.py`](#testing-with-clientpy)
 7. [Running an Agent (`agent.py`)](#running-an-agent-agentpy)
 8. [MCP Transport Modes](#mcp-transport-modes)
-9. [Sample `.vscode/mcp.json`](#sample-vscodemcpjson)
-10. [Extending with FastMCP](#extending-with-fastmcp)
+9. [Security](#security)
+10. [Sample `.vscode/mcp.json`](#sample-vscodemcpjson)
+11. [Extending with FastMCP](#extending-with-fastmcp)
 
 ---
 
@@ -139,6 +140,39 @@ Use it to list tools or invoke them interactively.
 - **sse (HTTP)**: Native SSE endpoint → more flexible and scalable.
 
 > Most open‐source MCP implementations default to stdio.
+
+---
+
+## Security
+
+By default, MCP exposes a `list_tools` endpoint which can reveal all available functions. To lock down access:
+
+1. **Disable Listing**: In your server code, override or remove the `list_tools` handler so that tools must be called by name without enumeration.
+
+2. **Authenticate Requests**: Place a reverse proxy (e.g. NGINX or Traefik) in front of SSE endpoints and require an API token or OAuth header. Example NGINX snippet:
+
+   ```nginx
+   location /lookup/sse {
+     proxy_pass http://localhost:8001/sse;
+     proxy_set_header Authorization $http_authorization;
+     auth_request /auth;
+   }
+   ```
+
+3. **Per‑Tool Guards**: Inside each tool implementation, validate a request header or shared secret before proceeding:
+
+   ```python
+   from fastmcp import FastMCP, Context
+
+   @mcp.tool("secured_tool")
+   def secured_tool(params: dict, context: Context):
+       token = context.headers.get("Authorization")
+       if token != os.environ.get("MCP_API_TOKEN"):
+           raise PermissionError("Invalid API token")
+       # … tool logic …
+   ```
+
+4. **Network Controls**: Limit access to SSE ports via firewall rules or Docker network policies so only trusted clients can connect.
 
 ---
 
