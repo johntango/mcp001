@@ -41,13 +41,12 @@ def hello(params: dict):
 
 
 @mcp.tool("lookup_id", description="Given a VectorDB name, return its ID")
-def lookup_id(params: dict):
-    db_name = params.get("name")
-    if not db_name:
+def lookup_id(name: str):
+    if not name:
         raise ValueError("Parameter 'name' is required")
     stores = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).vector_stores.list()
     for store in stores:
-        if store.name == db_name:
+        if store.name == name:
             return {"id": store.id}
     raise ValueError(f"No vector store named '{db_name}' found")
 

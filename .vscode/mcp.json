@@ -1,6 +1,7 @@
 {
     "servers": {
         "memory": {
+            "type": "stdio",
             "command": "npx",
             "args": [
                 "-y",
@@ -11,6 +12,7 @@
             ]
         },
         "brave-search": {
+            "type": "stdio",
             "command": "npx",
             "args": [
                 "-y",
@@ -22,6 +24,7 @@
             }
         },
         "filesystem": {
+            "type": "stdio",
             "command": "npx",
             "args": [
                 "-y",
@@ -30,6 +33,7 @@
             ]
         },
         "github": {
+            "type": "stdio",
             "command": "npx",
             "args": [
                 "-y",

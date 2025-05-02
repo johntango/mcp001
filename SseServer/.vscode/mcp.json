@@ -20,6 +20,17 @@
             "env": {
                 "BRAVE_API_KEY": ""
             }
-        }
+        },
+        "memory": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-memory",
+                "--persist",
+                "--file",
+                "memory.json"
+            ]
+        },
     }
 }

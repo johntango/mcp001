@@ -3,7 +3,7 @@ import asyncio
 
 async def main():
     # Connection is established here
-    sse_url = "http://localhost:9000/sse"
+    sse_url = "http://localhost:8000/sse"
     client = Client(sse_url)
     async with client:
         print(f"Client connected: {client.is_connected()}")

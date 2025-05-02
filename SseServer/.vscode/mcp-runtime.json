@@ -1,4 +1,5 @@
 {
   "lookup": "http://localhost:8000",
-  "brave-search": "http://localhost:8002"
+  "brave-search": "http://localhost:8001",
+  "memory": "http://localhost:8002"
 }
