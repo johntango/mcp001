@@ -1,13 +1,14 @@
 # Multi‑MCP SSE Gateway Manager (SseServer)
 
-## Overview of Framework
-This repository provides a framework for standing up multiple Model Context Protocol (MCP) SSE servers—each hosting its own set of tools—automatically via a single gateway runner. The global URLs are written to  mcp-runtime.json that can be given to "apps" or "Agents" on other machines that can then access the servers and invoke tools without worrying about transport or process wiring.
+** This repository provides a framework for standing up multiple Model Context Protocol (MCP) SSE servers—each hosting its own set of tools—automatically via a single gateway runner. The global URLs are written to  mcp-runtime.json that can be given to "apps" or "Agents" on other machines that can then access the servers and invoke tools without worrying about transport or process wiring.
 mcp-runtime.json file 
+
 {
   "lookup": "https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8000.app.github.dev",
   "brave-search": "https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8001.app.github.dev",
   "memory": "https://ominous-space-chainsaw-7p9qvpvw76jfp9p7-8002.app.github.dev"
 }
+
 The above will provide a OpenAI VectorDB RAG system (lookup), web-search(brave-search), and graph based memory{memory} to an Agent (see agent.py). 
 The "lookup" is written in FastMCP exposing SSE endpoint directly, 
 "brave-search" is imported using npx from modelcontextprotocol which runs stdio but is wrapped by "supergateway" to expose SSE endpoint
