@@ -60,7 +60,8 @@ def queryvectordb(name: str, messages: str):
 
     try:
         # Correct function call
-        vector_store_id = "vs_KY8o9PLZUZnmpYz9ybHiXi3l"
+        #vector_store_id = "vs_KY8o9PLZUZnmpYz9ybHiXi3l"
+        vector_store_id = lookup_id(name)["id"]
         # Call responses.create with keyword args
         response = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).responses.create(
             model="gpt-4o-mini",
