@@ -21,7 +21,7 @@
 The endpoints above provide:
 
 - **VectorDB RAG lookup** (`lookup`)  
-  A FastMCP server exposing SSE directly to retrieve vector store IDs via OpenAI’s Vector Stores API.
+  A FastMCP server exposing SSE directly to answer queries by retrieving vector store documents via OpenAI’s Vector Stores API.
 
 - **Web Search** (`brave-search`)  
   The `@modelcontextprotocol/server-brave-search` package, run via `npx` (stdio), wrapped by **supergateway** to expose an SSE endpoint.
