@@ -15,6 +15,7 @@ workspace_root = MCP_CONFIG.parent.parent  # → /workspaces/mcp001/SseServer
 # Path to write runtime server endpoints
 MCP_RUNTIME = Path("/workspaces/mcp001/SseServer/.vscode") / "mcp-runtime.json"
 DEFAULT_BASE_PORT = 8000
+CS_NAME = os.environ["CODESPACE_NAME"]         # e.g. 'monalisa-hot-potato-…'
 
 
 def load_mcp_config(path: Path) -> dict:
@@ -107,12 +108,13 @@ def write_runtime(procs: List[Tuple[str, int, str, subprocess.Popen]], path: Pat
     """
     Write a JSON map of service name to base URL (no /sse suffix), so clients can append /sse.
 
-    For stdio services: http://localhost:{port}/{name}
+    For stdio services: http://localhost:{port}
     For direct services: http://localhost:{port}
     """
+    
     endpoints: Dict[str, str] = {}
     for name, port, svc_type, _ in procs:
-        endpoints[name] = f"http://localhost:{port}"
+        endpoints[name] =  f"https://{CS_NAME}-{port}.app.github.dev"
 
     with open(path, "w") as f:
         json.dump(endpoints, f, indent=2)
