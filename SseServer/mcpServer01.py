@@ -50,11 +50,35 @@ def lookup_id(name: str):
             return {"id": store.id}
     raise ValueError(f"No vector store named '{db_name}' found")
 
+
+@mcp.tool("queryvectordb", description="Given a query and a vectordb name return the top 2 results")
+def queryvectordb(name: str, messages: str):
+    if not name:
+        raise ValueError("'name' is required")
+    if not messages:
+        raise ValueError("'messages' is required")
+
+    try:
+        # Correct function call
+        vector_store_id = "vs_KY8o9PLZUZnmpYz9ybHiXi3l"
+        # Call responses.create with keyword args
+        response = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).responses.create(
+            model="gpt-4o-mini",
+            tools=[{
+                "type": "file_search",
+                "vector_store_ids": [vector_store_id],
+            }],
+            input=messages
+        )
+        # Proper f‑string and no stray punctuation
+        print(f"Response: {response.output_text}")
+        return response.output_text
+
+    except Exception as e:
+        raise ValueError(f"Error querying vector store '{name}': {e}")
+
 # ─── Entrypoint ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     url = f"http://{args.host}:{args.port}/{name}/sse"
     print(f"Starting SSE at {url} …")
-    # Run only the SSE transport; path is auto-prefixed by 'name'
-    # HTTP namespace is applied when running without transport="sse"
-    # Here, SSE runs on raw /sse, but clients should connect at the generated URL
     mcp.run(transport="sse", host=args.host, port=args.port)

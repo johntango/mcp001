@@ -21,9 +21,13 @@ async def main():
             print(f"Greet result: {result}")
         if any(tool.name == "lookup_id" for tool in tools):
             result = await client.call_tool("lookup_id", {
-            "params": {
                 "name": "MyVectorStore"
-            }
+            })
+            print(f"Greet result: {result}")
+        if any(tool.name == "queryvectordb" for tool in tools):
+            result = await client.call_tool("queryvectordb", {
+                "name": "MyVectorStore",
+                "messages": "What does John like?"
             })
             print(f"Greet result: {result}")
 
