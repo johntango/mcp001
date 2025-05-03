@@ -51,12 +51,12 @@ def lookup_id(name: str):
     raise ValueError(f"No vector store named '{db_name}' found")
 
 
-@mcp.tool("queryvectordb", description="Given a query and a vectordb name return the top 2 results")
-def queryvectordb(name: str, messages: str):
+@mcp.tool("queryvectordb", description="Given a query and a vectordb name return the best answer")
+def queryvectordb(name: str, query: str):
     if not name:
         raise ValueError("'name' is required")
     if not messages:
-        raise ValueError("'messages' is required")
+        raise ValueError("'query' is required")
 
     try:
         # Correct function call
@@ -69,7 +69,7 @@ def queryvectordb(name: str, messages: str):
                 "type": "file_search",
                 "vector_store_ids": [vector_store_id],
             }],
-            input=messages
+            input=query
         )
         # Proper f‑string and no stray punctuation
         print(f"Response: {response.output_text}")

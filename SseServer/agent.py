@@ -80,9 +80,9 @@ async def run_agent(mcp_servers: List[MCPServerSse]) -> None:
     )
 
     examples = [
-        "Lookup id for VectorDB with name MyVectorStore ?",
-        "John likes fast cars",
+        "Get SEC filings for Microsoft",
         "What does John like?",
+        "Using VectorDB with name MyVectorStore answer the question Tell me about Rita?",
     ]
     for msg in examples:
         print(f"\n>> Query: {msg}")

@@ -1,5 +1,14 @@
 {
     "servers": {
+        "SEC": {
+            "command": "python",
+            "args": [
+                "mcpServerSEC.py"
+            ],
+            "env": {
+                "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
+            }
+        },
         "lookup": {
             "command": "python",
             "args": [
