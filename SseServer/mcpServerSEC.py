@@ -6,11 +6,12 @@ from secedgar.core.rest import (
     get_company_facts,
     get_xbrl_frames,
 )
+from secedgar.cik_lookup import CIKLookup
 from fastmcp import FastMCP, Context
 
 name = "SEClookup"
 
-SEC_EDGAR_USER_AGENT="John Williams (jrw@mit.eud)"
+SEC_EDGAR_USER_AGENT="John Williams (jrwtango@gmail.com)"
 
 sec_edgar_user_agent = SEC_EDGAR_USER_AGENT
 
@@ -35,8 +36,8 @@ args = parser.parse_args()
 mcp = FastMCP("SEC EDGAR MCP", dependencies=["secedgar"])
 
 
-@mcp.tool("get_submissions")
-def get_submissions_tool(
+@mcp.tool("get_submissions", description="get the submissions of one or more companies")
+async def get_submissions_tool(
     lookups: Union[str, List[str]],
     user_agent: str = sec_edgar_user_agent,
     recent: bool = True,
@@ -52,10 +53,11 @@ def get_submissions_tool(
     Returns:
         Dict[str, dict]: A dictionary mapping each lookup to its submission data.
     """
-    return get_submissions(lookups=lookups, user_agent=user_agent, recent=recent)
+    result = await get_submissions(lookups=lookups, user_agent=user_agent, recent=recent)
+    return result
 
 
-@mcp.tool("get_company_concepts")
+@mcp.tool("get_company_concepts",description="get the company concepts of one or more companies")
 def get_company_concepts_tool(
     lookups: Union[str, List[str]],
     concept_name: str,
@@ -79,7 +81,7 @@ def get_company_concepts_tool(
     )
 
 
-@mcp.tool("get_company_facts")
+@mcp.tool("get_company_facts",description="get the facts of one or more companies")
 def get_company_facts_tool(
     lookups: Union[str, List[str]], user_agent: str = sec_edgar_user_agent
 ) -> Dict[str, dict]:
@@ -96,7 +98,7 @@ def get_company_facts_tool(
     return get_company_facts(lookups=lookups, user_agent=user_agent)
 
 
-@mcp.tool("get_xbrl_frames")
+@mcp.tool("get_xbrl_frames", description="get the xbrl frames of one or more companies")
 def get_xbrl_frames_tool(
     concept_name: str,
     year: int,
@@ -129,6 +131,6 @@ def get_xbrl_frames_tool(
     )
 
 if __name__ == "__main__":
-    url = f"http://{args.host}:{args.port}/{name}/sse"
+    url = f"http://{args.host}:{args.port}/sse"
     print(f"Starting SSE at {url} …")
     mcp.run(transport="sse", host=args.host, port=args.port)
