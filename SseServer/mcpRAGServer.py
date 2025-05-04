@@ -22,7 +22,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-name = "lookup"
+name = "RAGLookup"
 
 # Instantiate FastMCP server with dynamic port/host
 mcp = FastMCP(
@@ -48,14 +48,14 @@ def lookup_id(name: str):
     for store in stores:
         if store.name == name:
             return {"id": store.id}
-    raise ValueError(f"No vector store named '{db_name}' found")
+    raise ValueError(f"No vector store named '{name}' found")
 
 
 @mcp.tool("queryvectordb", description="Given a query and a vectordb name return the best answer")
 def queryvectordb(name: str, query: str):
     if not name:
         raise ValueError("'name' is required")
-    if not messages:
+    if not query:
         raise ValueError("'query' is required")
 
     try:

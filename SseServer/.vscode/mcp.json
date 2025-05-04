@@ -1,18 +1,18 @@
 {
     "servers": {
-        "SEC": {
+        "StockSentiment": {
             "command": "python",
             "args": [
-                "mcpServerSEC.py"
+                "mcpSECServer.py"
             ],
             "env": {
                 "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
             }
         },
-        "lookup": {
+        "RAGLookup": {
             "command": "python",
             "args": [
-                "mcpServer01.py"
+                "mcpRAGServer.py"
             ],
             "env": {
                 "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
