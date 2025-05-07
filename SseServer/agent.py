@@ -59,7 +59,13 @@ async def build_and_connect_servers(
                 raise RuntimeError(f"SSE check failed for '{name}' at {sse_url}: {e}")
 
             # Connect the MCP SSE client
-            params: MCPServerSseParams = {"url": sse_url}
+
+            params: MCPServerSseParams = {
+                "url": sse_url,
+                # bump the per-request wait window from 5s → 60s
+                "timeout": 60.0
+            }
+
             srv = MCPServerSse(params=params, name=name)
             await srv.connect()
             tools = await srv.list_tools()
@@ -73,21 +79,25 @@ async def run_agent(mcp_servers: List[MCPServerSse]) -> None:
     set_default_openai_key(os.environ["OPENAI_API_KEY"])
     model_settings = ModelSettings(max_tokens=1000, temperature=0.7)
     agent = Agent(
-        name="Assistant",
-        instructions="Use the available MCP tools to answer the questions.",
+        name="Agent with RAG",
+        model="gpt-4o-mini",
+        instructions="Use the available files from RAG Vector Store to answer the questions.",
         mcp_servers=mcp_servers,
         model_settings=model_settings,
     )
 
     examples = [
-        "Get SEC filings for Microsoft",
-        "What does John like?",
-        "Using VectorDB with name MyVectorStore answer the question Tell me about Rita?",
+
+        "Get the sentiment for Microsoft MSFT.'",
+        "Tell me about CrewAI?"
+       
     ]
     for msg in examples:
         print(f"\n>> Query: {msg}")
         resp = await Runner.run(starting_agent=agent, input=msg)
-        print("→", resp.final_output)
+        print("→", resp)
+
+    return
 
 
 async def disconnect_servers(mcp_servers: List[MCPServerSse]) -> None:

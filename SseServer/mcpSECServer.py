@@ -9,7 +9,7 @@ from agents.model_settings import ModelSettings
 import spacy
 import pandas
 
-from edgar import *
+from edgar import Company, set_identity
 from loguru import logger
 from datetime import datetime
 
@@ -39,30 +39,56 @@ set_identity(SEC_EDGAR_USER_AGENT)
 
 mcp = FastMCP(name=name, port=8000, host="localhost")
 
-@mcp.tool("hello",description="Given a person's name return Hello <name>" )
-def hello(params: dict):
-    name = params.get("name")
-    if not name:
-        raise ValueError("Parameter 'name' is required")
-    return {"hello": f"Hello {name}"}   
+async def testEdgar():
+    # Test the EDGAR API
+    company = Company("AAPL")
+    print(company)
+    try:
+        filings = company.get_filings().latest(10)
+        print(filings)
+        filing8k = filings.filter(form="8-K")
+        print(filing8k)
+        filing10k = filings.filter(form="10-K")
+        print(filing10k)
+        filing10q = filings.filter(form="10-Q")
+        print(filing10q)
+
+        print(company.get_financials().income_statement())
+    
+    except AttributeError:
+        pass
+     
+    
+
 
 @mcp.tool("get_8k_filings", description="Get 8k filings for a list of companies")
-def get_8k_filings_tool():
+async def get_8k_filings_tool():
 
     morning_movers = [ ]
 
     # List of stocks
-    spx_morning_movers = ["PANW", "TSLA","MSFT"]
+    spx_morning_movers = ["AAPL","MSFT"]
 
     morning_movers.extend(spx_morning_movers)
 
     morning_movers = list(set(morning_movers))
 
     ticker_news = []
+    
 
     for ticker in morning_movers:
+        company = Company(ticker)
         try:
-            latest_filing = Company(ticker).get_filings(form="8-K").latest(1)
+            latest_filing = company.get_filings().latest(3)
+            annual_reports = latest_filing.filter(form="10-K")
+            text = latest_filing.text()
+            #financials = company.financials
+            #income_statement = financials.income_statement()
+            #balance_sheet = financials.balance_sheet()
+            # cashflow = financials.cashflow_statement()
+            # annual_reports = company.get_filings(form="10-K").latest(3)
+
+            # latest_10qs = quarterly_reports.latest(3)
         except AttributeError:
             continue
 
@@ -79,7 +105,7 @@ def get_8k_filings_tool():
         ticker_news.append(clean_text)
 
     # expand list
-
+    print(ticker_news)
     return ticker_news
 
 
@@ -89,7 +115,7 @@ async def analyze_sentiment_gpt():
         2) detect event types from given list
         3) adjust sentiment based on event type
     """
-    list = get_8k_filings_tool()
+    list = await get_8k_filings_tool()
     text =" ".join(list)
 
     EVENTS = {
@@ -145,7 +171,7 @@ async def analyze_sentiment_gpt():
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-    
+    print(f"running sentiment analysis with messages: {messages}")
     await run_agent(messages)
 
 async def run_agent(messages):
@@ -167,6 +193,5 @@ async def run_agent(messages):
     
 
 if __name__ == "__main__":
-    url = f"http://{args.host}:{args.port}/{name}/sse"
-    print(f"Starting SSE at {url} …")
-    mcp.run(transport="sse", host=args.host, port=args.port)
+    asyncio.run(testEdgar())
+  

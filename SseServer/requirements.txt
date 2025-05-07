@@ -3,3 +3,4 @@ fastapi
 uvicorn
 jinja2
 openai-agents
+edgartools

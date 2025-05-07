@@ -2,6 +2,7 @@
 import json5
 import json
 import os
+import asyncio
 import subprocess
 import sys
 import time
@@ -159,4 +160,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

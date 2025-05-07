@@ -1,12 +1,9 @@
 {
     "servers": {
-        "vectordb-lookup": {
+        "StockSentiment": {
             "command": "python",
             "args": [
-                "-u",
-                "vectordb_lookup_server.py",
-                "--host",
-                "0.0.0.0"
+                "mcpSECServer.py"
             ],
             "env": {
                 "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
@@ -34,5 +31,23 @@
                 "BRAVE_API_KEY": ""
             }
         },
+        "RAGLookup": {
+            "command": "python",
+            "args": [
+                "mcpRAGServer.py"
+            ],
+            "env": {
+                "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
+            }
+        },
+        "everything": {
+            "command": "npx",
+            "args": [
+                "@modelcontextprotocol/server-everything"
+            ],
+            "env": {
+                "hello": "Hello MCP!"
+            }
+        }
     }
 }

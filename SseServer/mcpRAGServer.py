@@ -30,15 +30,8 @@ mcp = FastMCP(
     port=args.port,
     host=args.host
 )
-
+vector_store_id_cache: dict[str,str] = {}
 # ─── Tool Definitions ─────────────────────────────────────────────────────────────
-@mcp.tool("hello", description="Given a person's name return Hello <name>")
-def hello(params: dict):
-    name_param = params.get("name")
-    if not name_param:
-        raise ValueError("Parameter 'name' is required")
-    return {"hello": f"Hello {name_param}"}
-
 
 @mcp.tool("lookup_id", description="Given a VectorDB name, return its ID")
 def lookup_id(name: str):
@@ -47,12 +40,13 @@ def lookup_id(name: str):
     stores = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).vector_stores.list()
     for store in stores:
         if store.name == name:
-            return {"id": store.id}
+            vector_store_id_cache = {"id":store.id}
+            return {"result": store.id}
     raise ValueError(f"No vector store named '{name}' found")
 
 
-@mcp.tool("queryvectordb", description="Given a query and a vectordb name return the best answer")
-def queryvectordb(name: str, query: str):
+@mcp.tool("RAGsearch", description="Given RAG VectorDB name and a query return the best answer by using the RAG tool")
+def ragsearch_tool(name: str, query: str):
     if not name:
         raise ValueError("'name' is required")
     if not query:
@@ -60,20 +54,25 @@ def queryvectordb(name: str, query: str):
 
     try:
         # Correct function call
-        #vector_store_id = "vs_KY8o9PLZUZnmpYz9ybHiXi3l"
-        vector_store_id = lookup_id(name)["id"]
+        vector_store_id_cache = {"id":"vs_ftVzUp6jJR6Yv6QpfdG1zCgZ"}
+        if vector_store_id_cache == {}:
+            vector_store_id_cache = lookup_id(name)
+        #vector_store_id = lookup_id(name).get("id")
         # Call responses.create with keyword args
+        print(f"Querying vector store '{name}' with ID '{vector_store_id_cache['id']}'")
+        tools = [{
+                "type": "file_search",
+                "vector_store_ids": [vector_store_id_cache["id"]],
+                "max_num_results": 1
+            }]
         response = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).responses.create(
             model="gpt-4o-mini",
-            tools=[{
-                "type": "file_search",
-                "vector_store_ids": [vector_store_id],
-            }],
+            tools=tools,
             input=query
         )
         # Proper f‑string and no stray punctuation
         print(f"Response: {response.output_text}")
-        return response.output_text
+        return {"result": response.output_text}
 
     except Exception as e:
         raise ValueError(f"Error querying vector store '{name}': {e}")

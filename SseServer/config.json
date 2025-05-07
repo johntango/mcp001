@@ -1,0 +1,25 @@
+{
+    "mcpServers": {
+        "everything": {
+            "command": "npx",
+            "args": [
+                "@modelcontextprotocol/server-everything"
+            ],
+            "env": {
+                "hello": "Hello MCP!"
+            }
+        },
+        "brave-search": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-brave-search",
+                "--stdio"
+            ],
+            "env": {
+                "BRAVE_API_KEY": ""
+            }
+        }
+    }
+}
