@@ -8,8 +8,10 @@ from agents.mcp import MCPServerSse, MCPServerSseParams
 from agents.model_settings import ModelSettings
 import spacy
 import pandas
-
 from edgar import Company, set_identity
+from bs4 import BeautifulSoup
+import pandas as pd
+import re
 from loguru import logger
 from datetime import datetime
 
@@ -52,10 +54,16 @@ async def testEdgar():
         print(filing10k)
         filing10q = filings.filter(form="10-Q")
         print(filing10q)
+        insider_sales = filings.filter(form="4")
+        print(f"insider salies {insider_sales}")
 
-        print(company.get_financials().income_statement())
+        income_statement = company.get_financials().income_statement()
+
+        balance_sheet = company.get_financials().balance_sheet()
     
-    except AttributeError:
+        print(f"Balance Sheet: {balance_sheet}")
+
+    except AttributeError:  
         pass
      
     
@@ -190,8 +198,73 @@ async def run_agent(messages):
         print("Sentiment Admustment: ", resp.final_output)
 
 # ─── Entrypoint ─────────────────────────────────────────────────────────────────
-    
+@mcp.tool("getSECData", description="Given a company stock ticker get relevant event data from SEC filings")
+async def getSECData():
+    # Define the target company
+    company = Company("MSFT")  # Microsoft Corporation
+
+    # Define forms and the items of interest
+    form_items = {
+        "8-K": ["1.01", "1.03", "2.01", "2.02", "5.02", "8.01"],
+        "10-K": ["Item 1", "Item 1A", "Item 3", "Item 7"],
+        "10-Q": ["Item 1", "Item 1A", "Item 3", "Item 7"],
+        "S-4": [],
+        "SC 13D": [],
+        "SC TO": []
+    }
+
+    # Store the extracted data
+    extracted_data = []
+
+    # Iterate through each form type
+    for form_type, items in form_items.items():
+        try:
+            # Retrieve filings and check for None
+            filings_query = company.get_filings(form=form_type)
+            if filings_query is None:
+                print(f"No filings found for form {form_type}")
+                continue
+
+            filings = filings_query.latest(5)  # Get last 5 filings
+
+            for filing in filings:
+                try:
+                    text = filing.text()
+
+                    # Extract item sections or full text
+                    sections = {}
+                    if items:
+                        for item in items:
+                            pattern = re.compile(rf"(Item\s+{re.escape(item)}.*?)(?=Item\s+\d+|\Z)", re.DOTALL | re.IGNORECASE)
+                            match = pattern.search(text)
+                            if match:
+                                sections[item] = match.group(1).strip()
+                    else:
+                        sections["Full Text"] = text.strip()
+
+                    extracted_data.append({
+                        "Form Type": form_type,
+                        "Accession Number": filing.accession_number,
+                        "Filing Date": filing.filing_date,  # Correct attribute
+                        "Sections": sections
+                    })
+
+                except Exception as inner_err:
+                    print(f"Error parsing a {form_type} filing: {inner_err}")
+
+        except Exception as outer_err:
+            print(f"An error occurred while processing form {form_type}: {outer_err}")
+
+    # Convert to DataFrame
+    df = pd.DataFrame(extracted_data)
+
+    # Preview or export
+    print(df.head())
+    df.to_csv("sec_filings_extracted_data.csv", index=False)
+
 
 if __name__ == "__main__":
-    asyncio.run(testEdgar())
+    url = f"http://{args.host}:{args.port}/{name}/sse"
+    print(f"Starting SSE at {url} …")
+    mcp.run(transport="sse", host=args.host, port=args.port)
   

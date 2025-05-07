@@ -79,7 +79,7 @@ async def run_agent(mcp_servers: List[MCPServerSse]) -> None:
     set_default_openai_key(os.environ["OPENAI_API_KEY"])
     model_settings = ModelSettings(max_tokens=1000, temperature=0.7)
     agent = Agent(
-        name="Agent with RAG",
+        name="SEC Agent",
         model="gpt-4o-mini",
         instructions="Use the available files from RAG Vector Store to answer the questions.",
         mcp_servers=mcp_servers,
@@ -88,7 +88,7 @@ async def run_agent(mcp_servers: List[MCPServerSse]) -> None:
 
     examples = [
 
-        "Get the sentiment for Microsoft MSFT.'",
+        "Get SEC data for Microsoft MSFT.'",
         "Tell me about CrewAI?"
        
     ]
