@@ -41,11 +41,14 @@ set_identity(SEC_EDGAR_USER_AGENT)
 
 mcp = FastMCP(name=name, port=8000, host="localhost")
 
+
+@mcp.tool("TestEdgar", description="Test out the EDGAR API")
 async def testEdgar():
     # Test the EDGAR API
     company = Company("AAPL")
     print(company)
     try:
+        """
         filings = company.get_filings().latest(10)
         print(filings)
         filing8k = filings.filter(form="8-K")
@@ -60,8 +63,11 @@ async def testEdgar():
         income_statement = company.get_financials().income_statement()
 
         balance_sheet = company.get_financials().balance_sheet()
-    
-        print(f"Balance Sheet: {balance_sheet}")
+
+        print(f"Sentiment Adjustment: {balance_sheet}")
+        """
+
+        return {'Sentiment adjustment: ': 0.5}
 
     except AttributeError:  
         pass
@@ -114,7 +120,7 @@ async def get_8k_filings_tool():
 
     # expand list
     print(ticker_news)
-    return ticker_news
+    return {"textticker_news" : ticker_news}
 
 
 @mcp.tool("analyze_stock_sentiment", description="Given a company stock ticker get information from SEC events to analyze the sentiment movement outputtng a number between +1 and -1")
@@ -123,9 +129,11 @@ async def analyze_sentiment_gpt():
         2) detect event types from given list
         3) adjust sentiment based on event type
     """
-    list = await get_8k_filings_tool()
-    text =" ".join(list)
-
+    # read extracted filings from file
+    df = pd.read_csv("sec_filings_extracted_data.csv")
+    if df.empty:
+        df = await get_8k_filings_tool()
+    text =df.tolist()
     EVENTS = {
         "Executive Changes": [
             "resigned",
@@ -168,26 +176,26 @@ async def analyze_sentiment_gpt():
 
     system_prompt = f"""
         You are a sentiment analysis engine. 
-        Given an input text, return a JSON object with a single key 'sentiment' 
+        Given the input text, return a JSON object with a single key 'sentiment' 
         whose value is a float between -1 (very negative) and +1 (very positive). 
         Output ONLY the JSON. Use the following template for detecting Events:
         {EVENTS} . Also the following penalties to adjust the sentiment {PENALTY}
         """
     
-    user_prompt = f"Analyze the sentiment of this SEC filing excerpt:\n\n{text}"
+    user_prompt = f"Analyze the sentiment of this SEC filing data:\n\n{text}"
     messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
     print(f"running sentiment analysis with messages: {messages}")
-    await run_agent(messages)
+    sentiment = await run_agent(messages)
 
 async def run_agent(messages):
     set_default_openai_key(os.environ["OPENAI_API_KEY"])
     model_settings = ModelSettings( max_tokens=1000, temperature=0.7)
     agent = Agent(
         name="Assistant",
-        instructions="Use the available MCP tools to answer the questions.",
+        instructions="Use the data extracted from SEC filings to estimate the sentiment as a number between -1 and +1",
         model_settings=model_settings,
     )
 
@@ -196,6 +204,8 @@ async def run_agent(messages):
         print(f"\n>> Query: {msg}")
         resp = await Runner.run(starting_agent=agent, input=msg)
         print("Sentiment Admustment: ", resp.final_output)
+    
+    return {"sentiment": resp.final_output}
 
 # ─── Entrypoint ─────────────────────────────────────────────────────────────────
 @mcp.tool("getSECData", description="Given a company stock ticker get relevant event data from SEC filings")
@@ -212,6 +222,7 @@ async def getSECData():
         "SC 13D": [],
         "SC TO": []
     }
+    form_items =  {"10-K": ["Item 1", "Item 1A", "Item 3", "Item 7"]}
 
     # Store the extracted data
     extracted_data = []
@@ -233,7 +244,7 @@ async def getSECData():
 
                     # Extract item sections or full text
                     sections = {}
-                    if items:
+                    if items != []:
                         for item in items:
                             pattern = re.compile(rf"(Item\s+{re.escape(item)}.*?)(?=Item\s+\d+|\Z)", re.DOTALL | re.IGNORECASE)
                             match = pattern.search(text)
@@ -261,6 +272,7 @@ async def getSECData():
     # Preview or export
     print(df.head())
     df.to_csv("sec_filings_extracted_data.csv", index=False)
+    return {"extracted_data": "Hello World"}
 
 
 if __name__ == "__main__":

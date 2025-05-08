@@ -63,7 +63,7 @@ async def build_and_connect_servers(
             params: MCPServerSseParams = {
                 "url": sse_url,
                 # bump the per-request wait window from 5s → 60s
-                "timeout": 60.0
+                "timeout": 600.0
             }
 
             srv = MCPServerSse(params=params, name=name)
@@ -77,27 +77,30 @@ async def build_and_connect_servers(
 
 async def run_agent(mcp_servers: List[MCPServerSse]) -> None:
     set_default_openai_key(os.environ["OPENAI_API_KEY"])
-    model_settings = ModelSettings(max_tokens=1000, temperature=0.7)
+    model_settings = ModelSettings(max_tokens=1000, temperature=0.8, )
     agent = Agent(
         name="SEC Agent",
-        model="gpt-4o-mini",
-        instructions="Use the available files from RAG Vector Store to answer the questions.",
+        model="gpt-3.5-turbo-16k",
+        instructions="If necessary use the available SEC Tools to answer the questions.",
         mcp_servers=mcp_servers,
         model_settings=model_settings,
     )
 
     examples = [
-
-        "Get SEC data for Microsoft MSFT.'",
-        "Tell me about CrewAI?"
-       
+        "Test EDGAR SEC API",
+        "Use SEC data to say if Microsoft MSFT a good investment?",
     ]
     for msg in examples:
         print(f"\n>> Query: {msg}")
-        resp = await Runner.run(starting_agent=agent, input=msg)
-        print("→", resp)
+        #resp = await Runner.run_sync(starting_agent=agent, input=msg)
+        #resp = Runner.run_sync()(agent=agent, input=msg)
+        try:
+            resp = await Runner.run(starting_agent=agent, input=msg)
+            print("Sentiment Adjustment: ", resp.final_output)
+        except TimeoutError:
+            print("Timed out waiting for response")
 
-    return
+    return {"sentiment": resp.final_output}
 
 
 async def disconnect_servers(mcp_servers: List[MCPServerSse]) -> None:
