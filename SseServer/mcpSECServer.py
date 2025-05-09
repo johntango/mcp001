@@ -14,6 +14,7 @@ import pandas as pd
 import re
 from loguru import logger
 from datetime import datetime
+from csv import DictReader
 
     # Create the FastMCP server _with_ host/port settings
 # Parse command-line arguments for port (and optionally host)
@@ -43,7 +44,7 @@ mcp = FastMCP(name=name, port=8000, host="localhost")
 
 
 @mcp.tool("TestEdgar", description="Test out the EDGAR API")
-async def testEdgar():
+async def testEdgar()-> Dict[str,str]:
     # Test the EDGAR API
     company = Company("AAPL")
     print(company)
@@ -66,8 +67,8 @@ async def testEdgar():
 
         print(f"Sentiment Adjustment: {balance_sheet}")
         """
-
-        return {'Sentiment adjustment: ': 0.5}
+        sentiment = 0.5
+        return {'Sentiment: ': str(sentiment)}
 
     except AttributeError:  
         pass
@@ -76,7 +77,7 @@ async def testEdgar():
 
 
 @mcp.tool("get_8k_filings", description="Get 8k filings for a list of companies")
-async def get_8k_filings_tool():
+async def get_8k_filings_tool()-> Dict[str,str]:
 
     morning_movers = [ ]
 
@@ -120,160 +121,152 @@ async def get_8k_filings_tool():
 
     # expand list
     print(ticker_news)
-    return {"textticker_news" : ticker_news}
+    return {"ticker" : ticker_news}
 
+@mcp.tool("analyze_stock_sentiment", description="Analyze sentiment from SEC data")
+async def analyze_stock_sentiment(text: Union[str, Dict]) -> Dict[str, str]:
+    if isinstance(text, dict):
+        content = "\n".join(f"{k}: {v}" for k, v in text.items())
+    elif isinstance(text, str):
+        content = text
+    else:
+        return {"error": "Invalid input type"}
 
-@mcp.tool("analyze_stock_sentiment", description="Given a company stock ticker get information from SEC events to analyze the sentiment movement outputtng a number between +1 and -1")
-async def analyze_sentiment_gpt():
-    """ 1) get data from SEC on company filings
-        2) detect event types from given list
-        3) adjust sentiment based on event type
-    """
-    # read extracted filings from file
-    df = pd.read_csv("sec_filings_extracted_data.csv")
-    if df.empty:
-        df = await get_8k_filings_tool()
-    text =df.tolist()
     EVENTS = {
-        "Executive Changes": [
-            "resigned",
-            "appointed",
-            "left the company",
-            "terminated",
-        ],
-        "Financial Updates": [
-            "earnings",
-            "guidance",
-            "profit warning",
-            "quarterly report",
-        ],
-        "Mergers and Acquisitions": [
-            "acquisition",
-            "merger",
-            "purchase",
-            "sale",
-        ],
+        "Executive Changes": ["resigned", "appointed", "left the company", "terminated"],
+        "Financial Updates": ["earnings", "guidance", "profit warning", "quarterly report"],
+        "Mergers and Acquisitions": ["acquisition", "merger", "purchase", "sale"],
         "Litigation": ["lawsuit", "filed suit", "settled"],
         "Bankruptcy": ["bankruptcy", "chapter 11", "restructure"],
-        "Product Announcements": [
-            "product launch",
-            "new product",
-            "discontinued",
-        ],
+        "Product Announcements": ["product launch", "new product", "discontinued"],
         "Regulatory Changes": ["regulation", "compliance", "fined", "penalty"],
     }
-    PENALTY = {"Executive Changes": -0.3,
-                "Bankruptcy": -0.7,
-                "Financial Update - profit warning" : -0.4,
-                "Financial Update - missed" : -0.4,
-                "Mergers and Acquisitions": +0.5,
-                "Litigation": -0.4,
-                "Product Announcements": +0.3,
-                "Regulatory Changes": -0.3
+
+    PENALTY = {
+        "Executive Changes": -0.3,
+        "Bankruptcy": -0.7,
+        "Financial Update - profit warning": -0.4,
+        "Financial Update - missed": -0.4,
+        "Mergers and Acquisitions": +0.5,
+        "Litigation": -0.4,
+        "Product Announcements": +0.3,
+        "Regulatory Changes": -0.3,
     }
-        
 
-
-    system_prompt = f"""
-        You are a sentiment analysis engine. 
-        Given the input text, return a JSON object with a single key 'sentiment' 
-        whose value is a float between -1 (very negative) and +1 (very positive). 
-        Output ONLY the JSON. Use the following template for detecting Events:
-        {EVENTS} . Also the following penalties to adjust the sentiment {PENALTY}
-        """
-    
-    user_prompt = f"Analyze the sentiment of this SEC filing data:\n\n{text}"
-    messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-    print(f"running sentiment analysis with messages: {messages}")
-    sentiment = await run_agent(messages)
-
-async def run_agent(messages):
-    set_default_openai_key(os.environ["OPENAI_API_KEY"])
-    model_settings = ModelSettings( max_tokens=1000, temperature=0.7)
     agent = Agent(
-        name="Assistant",
-        instructions="Use the data extracted from SEC filings to estimate the sentiment as a number between -1 and +1",
-        model_settings=model_settings,
+        name="SentimentAgent",
+        instructions=f"""
+        You are a sentiment analysis engine.
+        Given the input text, return a JSON object with a single key 'sentiment'
+        whose value is a float between -1 (very negative) and +1 (very positive).
+        Explain which events you used to adjust sentiment.
+        Use these Events: {EVENTS}
+        Use these Penalties: {PENALTY}
+        """
     )
 
-    examples = messages 
-    for msg in examples:
-        print(f"\n>> Query: {msg}")
-        resp = await Runner.run(starting_agent=agent, input=msg)
-        print("Sentiment Admustment: ", resp.final_output)
-    
-    return {"sentiment": resp.final_output}
+    user_input = [{"role": "user", "content": content}]
+    try:
+        result = await Runner.run(agent, user_input)
+        if isinstance(result.final_output, dict):
+            return {"sentiment": str(result.final_output.get("sentiment", "N/A"))}
+        else:
+            return {"sentiment": str(result.final_output)}
+    except Exception as e:
+        return {"error": f"Execution failed: {str(e)}"}
+
+
+
 
 # ─── Entrypoint ─────────────────────────────────────────────────────────────────
-@mcp.tool("getSECData", description="Given a company stock ticker get relevant event data from SEC filings")
-async def getSECData():
-    # Define the target company
-    company = Company("MSFT")  # Microsoft Corporation
 
-    # Define forms and the items of interest
+
+# Define relevant keywords per category
+# Define relevant keywords per category
+RELEVANT_KEYWORDS = {
+    "Executive Changes": ["executive", "officer", "ceo", "cfo", "resign", "appointment", "management", "director"],
+    "Financial Updates": ["revenue", "earnings", "profit", "loss", "guidance", "financial results", "income"],
+    "Mergers and Acquisitions": ["merger", "acquisition", "buyout", "purchase", "deal", "consolidation"],
+    "Litigation": ["litigation", "lawsuit", "legal proceedings", "settlement", "complaint"],
+    "Bankruptcy": ["bankruptcy", "chapter 11", "insolvency", "restructuring"],
+    "Product Announcements": ["launch", "product", "release", "innovation", "update"],
+    "Regulatory Changes": ["regulation", "compliance", "sec", "doj", "ftc", "sanction", "enforcement"]
+}
+
+def identify_topics(text: str) -> list:
+    """Return list of matched categories for a given section of text."""
+    matches = []
+    lower_text = text.lower()
+    for category, keywords in RELEVANT_KEYWORDS.items():
+        if any(kw in lower_text for kw in keywords):
+            matches.append(category)
+    return matches
+
+@mcp.tool("getSECData", description="Given a company stock ticker get relevant data from SEC filings")
+async def getSECData(ticker) -> Dict[str, str]:
+    company = Company(ticker)
+
     form_items = {
         "8-K": ["1.01", "1.03", "2.01", "2.02", "5.02", "8.01"],
         "10-K": ["Item 1", "Item 1A", "Item 3", "Item 7"],
         "10-Q": ["Item 1", "Item 1A", "Item 3", "Item 7"],
-        "S-4": [],
-        "SC 13D": [],
-        "SC TO": []
     }
-    form_items =  {"10-K": ["Item 1", "Item 1A", "Item 3", "Item 7"]}
 
-    # Store the extracted data
     extracted_data = []
 
-    # Iterate through each form type
     for form_type, items in form_items.items():
         try:
-            # Retrieve filings and check for None
             filings_query = company.get_filings(form=form_type)
             if filings_query is None:
-                print(f"No filings found for form {form_type}")
                 continue
 
-            filings = filings_query.latest(5)  # Get last 5 filings
+            filings = filings_query.latest(2)
 
             for filing in filings:
                 try:
                     text = filing.text()
+                    sections = []
 
-                    # Extract item sections or full text
-                    sections = {}
-                    if items != []:
+                    if items:
                         for item in items:
                             pattern = re.compile(rf"(Item\s+{re.escape(item)}.*?)(?=Item\s+\d+|\Z)", re.DOTALL | re.IGNORECASE)
                             match = pattern.search(text)
                             if match:
-                                sections[item] = match.group(1).strip()
+                                item_text = match.group(1).strip()
+                                matched_topics = identify_topics(item_text)
+                                if matched_topics:
+                                    sections.append({
+                                        "Item": item,
+                                        "Content": item_text,
+                                        "Matched Topics": matched_topics
+                                    })
                     else:
-                        sections["Full Text"] = text.strip()
+                        matched_topics = identify_topics(text)
+                        if matched_topics:
+                            sections.append({
+                                "Item": "Full Text",
+                                "Content": text.strip(),
+                                "Matched Topics": matched_topics
+                            })
 
-                    extracted_data.append({
-                        "Form Type": form_type,
-                        "Accession Number": filing.accession_number,
-                        "Filing Date": filing.filing_date,  # Correct attribute
-                        "Sections": sections
-                    })
+                    if sections:
+                        extracted_data.append({
+                            "Form Type": form_type,
+                            "Accession Number": filing.accession_number,
+                            "Filing Date": filing.filing_date,
+                            "Relevant Sections": sections
+                        })
 
                 except Exception as inner_err:
-                    print(f"Error parsing a {form_type} filing: {inner_err}")
+                    print(f"Error parsing filing: {inner_err}")
 
         except Exception as outer_err:
-            print(f"An error occurred while processing form {form_type}: {outer_err}")
+            print(f"Error with form {form_type}: {outer_err}")
 
-    # Convert to DataFrame
     df = pd.DataFrame(extracted_data)
-
-    # Preview or export
-    print(df.head())
     df.to_csv("sec_filings_extracted_data.csv", index=False)
-    return {"extracted_data": "Hello World"}
 
+    return {"extracted_data": extracted_data[:5]}
 
 if __name__ == "__main__":
     url = f"http://{args.host}:{args.port}/{name}/sse"

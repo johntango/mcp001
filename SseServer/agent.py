@@ -30,7 +30,6 @@ def load_mcp_config(path: Path) -> dict:
         sys.exit(1)
     return json5.loads(path.read_text())
 
-
 async def build_and_connect_servers(
     config: dict,
     runtime: dict[str, str]
@@ -40,13 +39,14 @@ async def build_and_connect_servers(
     exists at base_url + '/sse', then connect via MCPServerSse.
     """
     servers: List[MCPServerSse] = []
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=600)
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         for name, base in runtime.items():
             if name not in config.get("servers", {}):
                 print(f"[!] Skipping unknown server '{name}'", file=sys.stderr)
                 continue
 
-            # Build the full SSE URL
             sse_url = f"{base.rstrip('/')}/sse"
             try:
                 async with session.get(sse_url, headers={"Accept": "text/event-stream"}) as resp:
@@ -55,47 +55,64 @@ async def build_and_connect_servers(
                     content_type = resp.headers.get("Content-Type", "")
                     if "event-stream" not in content_type:
                         raise RuntimeError(f"Unexpected Content-Type: {content_type}")
+            except asyncio.TimeoutError:
+                print(f"[!] Timeout occurred connecting to {sse_url}")
+                continue
             except Exception as e:
-                raise RuntimeError(f"SSE check failed for '{name}' at {sse_url}: {e}")
+                print(f"[!] SSE check failed for '{name}' at {sse_url}: {e}", file=sys.stderr)
+                continue
 
             # Connect the MCP SSE client
-
             params: MCPServerSseParams = {
                 "url": sse_url,
-                # bump the per-request wait window from 5s → 60s
-                "timeout": 600.0
+                "timeout": 600.0,  # Extended timeout
+                "sse_read_timeout": 600.0,  # Extended read timeout
             }
 
-            srv = MCPServerSse(params=params, name=name)
-            await srv.connect()
-            tools = await srv.list_tools()
-            print(f"[+] Connected '{name}' → tools: {tools}")
-            servers.append(srv)
+            try:
+                # Create and connect the server
+                print(f"[+] Connecting '{name}' to {sse_url} …")
+                # set the timeout because the default is 5 seconds. 
+                srv = MCPServerSse(params=params, name=name, client_session_timeout_seconds= 600.0,)
+                await srv.connect()
+                tools = await srv.list_tools()
+                print(f"[+] Connected '{name}' → tools: {tools}")
+                servers.append(srv)
+            except Exception as e:
+                print(f"[!] Error connecting/listing tools for '{name}': {e}", file=sys.stderr)
 
     return servers
-
 
 async def run_agent(mcp_servers: List[MCPServerSse]) -> None:
     set_default_openai_key(os.environ["OPENAI_API_KEY"])
     model_settings = ModelSettings(max_tokens=1000, temperature=0.8, )
-    agent = Agent(
+    
+    sentiment_agent = Agent(
         name="SEC Agent",
         model="gpt-3.5-turbo-16k",
-        instructions="If necessary use the available SEC Tools to answer the questions.",
+        instructions="Use the analyze_stock_sentiment tool to produce a sentiment between -1 and +1.",
         mcp_servers=mcp_servers,
         model_settings=model_settings,
     )
 
+    data_agent = Agent(
+        name="SEC Data Agent",
+        model="gpt-3.5-turbo-16k",
+        instructions="Use use getSECData tool to get data from SEC.",
+        mcp_servers=mcp_servers,
+        model_settings=model_settings,
+        handoffs=[sentiment_agent],
+    )
     examples = [
-        "Test EDGAR SEC API",
-        "Use SEC data to say if Microsoft MSFT a good investment?",
+        "Use SEC data to generate a sentiment for Microsoft MSFT ?",
+        "Yes proceed and give as much detail as possible about the sentiment of Microsoft MSFT.",
     ]
     for msg in examples:
         print(f"\n>> Query: {msg}")
         #resp = await Runner.run_sync(starting_agent=agent, input=msg)
         #resp = Runner.run_sync()(agent=agent, input=msg)
         try:
-            resp = await Runner.run(starting_agent=agent, input=msg)
+            resp = await Runner.run(starting_agent=data_agent, input=msg)
             print("Sentiment Adjustment: ", resp.final_output)
         except TimeoutError:
             print("Timed out waiting for response")
@@ -123,7 +140,6 @@ async def main() -> None:
     mcp_servers = await build_and_connect_servers(config, runtime)
     trace_id = gen_trace_id()
     with trace(workflow_name="MCP SSE Agent", trace_id=trace_id):
-        print(f"Trace URL: https://platform.openai.com/traces/trace?trace_id={trace_id}\n")
         try:
             await run_agent(mcp_servers)
         finally:
