@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/johntango-mcp001-badge.png)](https://mseep.ai/app/johntango-mcp001)
+
 # Multi‑MCP SSE Gateway Manager (SseServer)
 
 ## Overview
