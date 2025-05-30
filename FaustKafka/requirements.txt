@@ -1,6 +1,0 @@
-google-api-client
-google-auth-oauthlib
-google-auth
-os
-pickle
-time
