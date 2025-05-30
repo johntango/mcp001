@@ -1,0 +1,4 @@
+{"message": "Shutting down trace provider"}
+{"message": "Shutting down trace processor <agents.tracing.processors.BatchTraceProcessor object at 0x769e4306d700>"}
+{"message": "Shutting down trace provider"}
+{"message": "Shutting down trace processor <agents.tracing.processors.BatchTraceProcessor object at 0x7aaa0c31c800>"}

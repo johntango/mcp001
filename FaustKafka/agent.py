@@ -17,26 +17,26 @@ model_settings = ModelSettings(
     temperature=0.7,
     max_tokens=5000,
 )
-
+MAX_ROUNDS = 1  # Maximum number of rounds for the agent interactions
 
 
 
 # Define Agents
 plot_agent = Agent(
     name="Plot Agent",
-    instructions="Develop a creative, child-friendly plot for a story titled 'Tim the Flying Dog'. The story should have a clear beginning, middle, and end, with lighthearted conflict and resolution. Output only the plot structure.",
+    instructions="These are the Master Instructions {Develop a creative, child-friendly story titled 'Tim the Flying Dog'. The story should have a clear beginning, middle, and end, with lighthearted conflict and resolution. Output only the plot structure. The plot should be suitable for children aged 5-8, with simple language and imaginative elements.}  Repeat these Master Instructions in your response.",
     model_settings=model_settings,
 )
 
 writer_agent = Agent(
     name="Writer Agent",
-    instructions="Using the plot provided, write a vivid, engaging narrative suitable for children aged 5-8. Keep the language simple and whimsical. Include imaginative details.",
+    instructions="Follow the Master Instructions and the plot provided , write a vivid, engaging narrative suitable for children aged 5-8. Keep the language simple and whimsical. Include imaginative details. Repeat the Master Instructions in your response.",
     model_settings=model_settings,
 )
 
 critic_agent = Agent(
     name="Critic Agent",
-    instructions="Review the story written by the Writer Agent. Suggest improvements focused on language clarity, pacing, tone, and engagement for young readers. Do not rewrite the entire story, just give specific, actionable feedback.",
+    instructions="Review the story written by the Writer Agent. Suggest improvements focused on language clarity, pacing, tone, and engagement for young readers. Do not rewrite the entire story, just give specific, actionable feedback. Repeat the Master Instructions in your response.",
     model_settings=model_settings,
 )
 
@@ -47,6 +47,7 @@ app = faust.App("agent_pipeline", broker="kafka://localhost:9092")
 class Message(faust.Record):
     trace_id: str
     content: str
+    round: int = 0
 
 plot_topic = app.topic("plot", value_type=Message)
 story_topic = app.topic("story", value_type=Message)
@@ -78,7 +79,7 @@ logging.getLogger("faust").setLevel(logging.DEBUG)
 
 def log_event(event_type, topic, trace_id, payload):
     logger.info({
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "event": event_type,
         "topic": topic,
         "trace_id": trace_id,
@@ -92,6 +93,9 @@ def log_event(event_type, topic, trace_id, payload):
 async def writer_agent_stream(stream):
     
     async for msg in stream:
+        if msg.round >= MAX_ROUNDS:
+            await final_topic.send(value=msg)
+            continue
         log_event("consume", "plot", msg.trace_id, msg.content)
         with trace("Writer Phase"):
             result = await Runner.run(writer_agent, msg.content)
@@ -122,14 +126,26 @@ async def writer_revise_stream(stream):
 @app.agent(final_topic)
 async def editor_output_stream(stream):
     async for msg in stream:
-        print(f"\n✅ Final Story Output for Trace ID {msg.trace_id}:\n{msg.content}")
+        print(f"\n✅ Final Story Output for Trace ID {msg.trace_id}:\n{msg.content} \n")
 
-@app.timer(interval=10.0, on_leader=True)
-async def initiate_pipeline():
+# This runs the plot agent once at startup
+@app.task
+async def initiate_pipeline_once():
+    await asyncio.sleep(1)  # Optional: wait for app startup
     trace_id = str(uuid4())
     with trace("Plot Phase"):
-        result = await Runner.run(plot_agent, "Create plot for 'Tim the Flying Dog'")
+        result = await Runner.run(plot_agent, "Create the plot for 'Tim the Flying Dog'")
+        log_event("produce", "plot", trace_id, result.final_output)
     await plot_topic.send(value=Message(trace_id=trace_id, content=result.final_output))
+
+# use timer to run multiple times 
+
+#@app.timer(interval=100.0, on_leader=True)
+#async def initiate_pipeline():
+#    trace_id = str(uuid4())
+#     with trace("Plot Phase"):
+#         result = await Runner.run(plot_agent, "Create plot for 'Tim the Flying Dog'")
+#     await plot_topic.send(value=Message(trace_id=trace_id, content=result.final_output))
 
 if __name__ == "__main__":
     app.main()
